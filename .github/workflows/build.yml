@@ -6,6 +6,7 @@ on:
         description: Exact upstream tag or unambiguous commit SHA (no branches)
         required: true
         type: string
+        default: v0.13.1
 permissions:
   contents: read
 jobs:
