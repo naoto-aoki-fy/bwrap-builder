@@ -9,7 +9,7 @@ Enter an exact upstream tag (for example `v0.13.1`) or an unambiguous commit SHA
 in `upstream_ref`. Successful builds publish ten raw executables: Rocky Linux 9/10,
 Ubuntu 24.04/26.04, and Alpine Linux 3.24.3, each for x86_64 and aarch64.
 
-Release tags are `bwrap-<upstream-tag>` or `bwrap-g<first-12-of-resolved-SHA>`.
+Release tags use independent `vMAJOR.MINOR.PATCH` versions, starting at `v0.0.1`.
 Download the matching executable from **Releases**, then:
 
 ```sh

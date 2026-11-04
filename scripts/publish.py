@@ -67,14 +67,29 @@ def api(endpoint, data=None, method=None):
     return json.loads(gh(*args, data=data))
 
 
+def next_release_tag(tags):
+    """Increment the greatest strict vMAJOR.MINOR.PATCH tag numerically."""
+    versions = []
+    for tag in tags:
+        match = re.fullmatch(r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', tag)
+        if match:
+            versions.append(tuple(map(int, match.groups())))
+    if not versions:
+        return 'v0.0.1'
+    major, minor, patch = max(versions)
+    return f'v{major}.{minor}.{patch + 1}'
+
+
 def main():
-    sha, tag = os.environ['UPSTREAM_SHA'], os.environ['RELEASE_TAG']
+    sha = os.environ['UPSTREAM_SHA']
     if not re.fullmatch('[0-9a-f]{40}', sha):
         raise ValueError('Invalid resolved SHA')
-    subprocess.run(['git', 'check-ref-format', 'refs/tags/' + tag], check=True)
     files, sums = collect(Path('artifacts'), Path('reports'), sha)
     repo = os.environ['GITHUB_REPOSITORY']
     base = f'repos/{repo}'
+    tag_pages = json.loads(gh('api', '--paginate', '--slurp', base + '/tags?per_page=100'))
+    tag = next_release_tag(t['name'] for page in tag_pages for t in page)
+    print('Selected distribution tag: ' + tag, flush=True)
     # Listing errors fail closed; do not treat authentication/network errors as absence.
     pages = json.loads(gh('api', '--paginate', '--slurp', base + '/releases?per_page=100'))
     if any(r['tag_name'] == tag for page in pages for r in page):

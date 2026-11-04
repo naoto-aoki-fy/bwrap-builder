@@ -5,15 +5,22 @@ cancelled matrix entry skips publishing. Only this job has `contents: write`;
 it uses the default `GITHUB_TOKEN`, never a personal token. The token is only
 passed to the publishing step, and downloaded executables are never executed there.
 
-Exact upstream tags produce `bwrap-<tag>` (including any upstream tag path
-components). Commit inputs produce `bwrap-g<first-12-of-full-SHA>`, independent of
-input abbreviation or case. Generated tags are checked with `git check-ref-format`.
+Distribution release tags use strict `vMAJOR.MINOR.PATCH` SemVer numbers,
+independent of the bubblewrap version or selected upstream identifier. During
+publishing, the workflow reads every page of this builder repository's Git tags,
+selects the greatest numeric `(major, minor, patch)` tuple, and increments only
+its patch component. With no matching tags, it starts at `v0.0.1`. For example,
+`v1.10.10` takes precedence over `v1.9.99` and produces `v1.10.11`.
+Tags with leading zeroes, prerelease/build suffixes, or other formats are ignored.
+Tag listing errors stop publishing rather than falling back to the initial value.
+
 An upstream tag takes precedence over a hexadecimal commit interpretation.
 Distribution tags identify the builder workflow commit; release notes record the
 actual upstream SHA and source link. They are not copies of upstream Git history.
 
-Publishing uses a concurrency group keyed by the resolved release tag, with
-`cancel-in-progress: false`. Concurrent attempts for that release serialize.
+Publishing uses a shared `publish-release` concurrency group with
+`cancel-in-progress: false`. Tag selection occurs inside this serialized job,
+so concurrent builds select their numbers after earlier publications finish.
 GitHub may replace older pending jobs in a concurrency group; rerun those if needed.
 
 ## Verification and existing releases
@@ -25,8 +32,8 @@ SHA-256 checksums, nonempty ELF64 headers, executable type and CPU architecture,
 and parses the ELF with `readelf`. It does not execute ARM binaries on x86 runners.
 
 Both existing releases (including drafts) and existing distribution Git tags cause
-an explicit failure. A 12-character SHA-prefix collision therefore cannot replace
-an unrelated release. No assets are overwritten and there is no automatic delete.
+an explicit failure for the selected tag. No assets are overwritten and there is
+no automatic delete.
 
 After validation, a draft is created, exactly ten raw executables are uploaded,
 and the remote asset list is checked for count, names and upload state. All assets
@@ -45,14 +52,14 @@ outside workflow concurrency protection.
 For compilation, dependency, binary validation or upstream test failures, inspect
 the failed matrix job and its `reports-*` artifact. Test skips are recorded separately
 from failures. Retry transient package/network/runner failures by rerunning failed
-jobs; dispatch again for a complete fresh build. A successful build of an already
-published revision will deliberately fail at publishing rather than replacing it.
+jobs; dispatch again for a complete fresh build. A new build of the same upstream
+revision receives a new distribution version.
 
 If publishing left a draft, inspect its notes and assets. An administrator may delete
 the failed draft and, if present, its distribution tag after confirming it was never
 published, then rerun the failed publishing job while artifacts remain available
-(seven days). Do not delete a published release just to retry. A naming collision
-requires choosing a different upstream tag or reviewing the naming policy in code.
+(seven days). Do not delete a published release just to retry. If an existing draft
+blocks the next version, inspect that draft before retrying.
 
 ## Licensing and runtime
 
@@ -70,7 +77,7 @@ AppArmor, seccomp, or a container runtime can deny them. No setuid mode is enabl
 
 ## Implementation validation
 
-Local validation passed: 13 resolver/publisher unit tests, actionlint, YAML parsing,
+Local checks cover resolver/publisher unit tests, YAML parsing,
 explicit dependency/permission/concurrency assertions, and Git whitespace checks.
 Publisher fixtures exercise missing/extra files, corrupt checksums, wrong ELF
 architecture, source SHA mismatches, existing releases/tags, upload failure, corrupt

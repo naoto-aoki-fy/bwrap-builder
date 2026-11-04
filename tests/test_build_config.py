@@ -35,6 +35,9 @@ class BuildConfigTests(unittest.TestCase):
         self.assertNotIn('continue-on-error', build)
         for step in build['steps']:
             self.assertNotIn('continue-on-error', step)
+        self.assertEqual(jobs['publish']['concurrency'],
+                         {'group': 'publish-release', 'cancel-in-progress': False})
+        self.assertNotIn('release_tag', jobs['resolve']['outputs'])
         self.assertEqual(jobs['publish']['needs'], ['resolve', 'build'])
         self.assertEqual(jobs['publish']['if'], '${{ success() }}')
         spec = importlib.util.spec_from_file_location('publish_config', ROOT / 'scripts/publish.py')

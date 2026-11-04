@@ -26,13 +26,6 @@ def resolve(repo, ref):
     return objects[0]
 
 
-def release_tag(repo, ref, sha):
-    tags = git(repo, 'for-each-ref', '--format=%(refname)', 'refs/tags').splitlines()
-    tag = 'bwrap-' + ref if 'refs/tags/' + ref in tags else 'bwrap-g' + sha[:12]
-    subprocess.run(['git', 'check-ref-format', 'refs/tags/' + tag], check=True)
-    return tag
-
-
 def main():
     ref = os.environ['UPSTREAM_REF']
     repo = Path('upstream.git')
@@ -46,7 +39,6 @@ def main():
     Path('resolved-sha.txt').write_text(sha + '\n')
     with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
         output.write('sha=' + sha + '\n')
-        output.write('release_tag=' + release_tag(repo, ref, sha) + '\n')
     print('Resolved upstream commit: ' + sha)
 
 

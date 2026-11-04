@@ -30,12 +30,6 @@ class ResolveTests(unittest.TestCase):
         for ref in ['v-test', 'v-annotated']:
             self.assertEqual(resolver.resolve(self.repo, ref), self.sha)
 
-    def test_release_tag_names(self):
-        self.assertEqual(resolver.release_tag(self.repo, 'v-test', self.sha), 'bwrap-v-test')
-        self.assertEqual(resolver.release_tag(self.repo, self.sha[:8], self.sha), 'bwrap-g' + self.sha[:12])
-        self.git('tag', 'nested/version')
-        self.assertEqual(resolver.release_tag(self.repo, 'nested/version', self.sha), 'bwrap-nested/version')
-
     def test_full_and_abbreviated_commit(self):
         for ref in [self.sha, self.sha[:8], self.sha[:8].upper()]:
             self.assertEqual(resolver.resolve(self.repo, ref), self.sha)

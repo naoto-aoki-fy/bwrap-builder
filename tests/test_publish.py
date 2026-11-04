@@ -35,6 +35,13 @@ class PublishTests(unittest.TestCase):
     def collect(self):
         return p.collect(self.artifacts, self.reports, self.sha)
 
+    def test_next_release_tag(self):
+        self.assertEqual(p.next_release_tag([]), 'v0.0.1')
+        self.assertEqual(p.next_release_tag(['bwrap-v9.9.9', 'v01.2.3', 'v1.2.3-rc.1',
+                                           'v1.2.3+build', '1.2.3', 'v1.2', 'v1.2.3\n']), 'v0.0.1')
+        self.assertEqual(p.next_release_tag(['v1.9.99', 'v1.10.9', 'v1.10.10']), 'v1.10.11')
+        self.assertEqual(p.next_release_tag(['v2.0.0', 'v1.999.999']), 'v2.0.1')
+
     def test_complete_set(self):
         files, sums = self.collect()
         self.assertEqual(len(files), 10)
@@ -71,12 +78,12 @@ class PublishTests(unittest.TestCase):
         old = Path.cwd()
         os.chdir(self.root)
         self.addCleanup(os.chdir, old)
-        env = dict(UPSTREAM_SHA=self.sha, RELEASE_TAG='bwrap-v-test', GITHUB_REPOSITORY='owner/repo')
-        with patch.dict(os.environ, env), patch.object(p, 'gh', return_value='[[{"tag_name":"bwrap-v-test"}]]'), patch.object(p, 'api') as api:
+        env = dict(UPSTREAM_SHA=self.sha, GITHUB_REPOSITORY='owner/repo')
+        with patch.dict(os.environ, env), patch.object(p, 'gh', side_effect=['[[]]', '[[{"tag_name":"v0.0.1"}]]']), patch.object(p, 'api') as api:
             with self.assertRaisesRegex(ValueError, 'already exists'):
                 p.main()
             api.assert_not_called()
-        with patch.dict(os.environ, env), patch.object(p, 'gh', return_value='[[]]'), patch.object(p, 'api', return_value=[{'ref': 'refs/tags/bwrap-v-test'}]) as api:
+        with patch.dict(os.environ, env), patch.object(p, 'gh', return_value='[[]]'), patch.object(p, 'api', return_value=[{'ref': 'refs/tags/v0.0.1'}]) as api:
             with self.assertRaisesRegex(ValueError, 'already exists'):
                 p.main()
             self.assertEqual(api.call_count, 1)
@@ -85,9 +92,9 @@ class PublishTests(unittest.TestCase):
         old = Path.cwd()
         os.chdir(self.root)
         self.addCleanup(os.chdir, old)
-        env = dict(UPSTREAM_SHA=self.sha, RELEASE_TAG='bwrap-v-test', GITHUB_REPOSITORY='owner/repo',
+        env = dict(UPSTREAM_SHA=self.sha, GITHUB_REPOSITORY='owner/repo',
                    GITHUB_SERVER_URL='https://github.com', GITHUB_RUN_ID='1', GITHUB_SHA='b'*40, UPSTREAM_REF='v-test')
-        with patch.dict(os.environ, env), patch.object(p, 'gh', side_effect=['[[]]', RuntimeError('upload failed')]), patch.object(p, 'api', side_effect=[[], {'id': 1}]) as api:
+        with patch.dict(os.environ, env), patch.object(p, 'gh', side_effect=['[[]]', '[[]]', RuntimeError('upload failed')]), patch.object(p, 'api', side_effect=[[], {'id': 1}]) as api:
             with self.assertRaisesRegex(RuntimeError, 'upload failed'):
                 p.main()
             self.assertEqual(api.call_count, 2)
@@ -97,13 +104,16 @@ class PublishTests(unittest.TestCase):
         old = Path.cwd()
         os.chdir(self.root)
         self.addCleanup(os.chdir, old)
-        env = dict(UPSTREAM_SHA=self.sha, RELEASE_TAG='bwrap-v-test', GITHUB_REPOSITORY='owner/repo',
+        env = dict(UPSTREAM_SHA=self.sha, GITHUB_REPOSITORY='owner/repo',
                    GITHUB_SERVER_URL='https://github.com', GITHUB_RUN_ID='1', GITHUB_SHA='b'*40,
                    UPSTREAM_REF='v-test', GITHUB_STEP_SUMMARY=str(self.root / 'summary'))
         assets = [{'name': n, 'state': 'uploaded'} for n in p.TARGETS]
         for corrupt in [True, False]:
             def fake_gh(*args, **kwargs):
                 if args[0] == 'api':
+                    if args[-1].endswith('/tags?per_page=100'):
+                        self.assertEqual(args[1:4], ('--paginate', '--slurp', 'repos/owner/repo/tags?per_page=100'))
+                        return '[[{"name":"v1.2.9"}], [{"name":"v1.2.10"}]]'
                     return '[[]]'
                 if args[:2] == ('release', 'download'):
                     directory = Path(args[args.index('--dir') + 1])
@@ -122,5 +132,8 @@ class PublishTests(unittest.TestCase):
                     self.assertFalse(any(c.kwargs.get('method') == 'PATCH' for c in api.call_args_list))
                 else:
                     p.main()
+                    creation = api.call_args_list[1].kwargs['data']
+                    self.assertEqual(creation['tag_name'], 'v1.2.11')
+                    self.assertEqual(creation['target_commitish'], 'b' * 40)
                     self.assertEqual(api.call_args.kwargs['data']['draft'], False)
                     self.assertEqual(api.call_args.kwargs['method'], 'PATCH')
