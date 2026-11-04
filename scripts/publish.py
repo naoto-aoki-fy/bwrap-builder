@@ -67,17 +67,25 @@ def api(endpoint, data=None, method=None):
     return json.loads(gh(*args, data=data))
 
 
+def semver(tag):
+    match = re.fullmatch(r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', tag)
+    return tuple(map(int, match.groups())) if match else None
+
+
 def next_release_tag(tags):
     """Increment the greatest strict vMAJOR.MINOR.PATCH tag numerically."""
-    versions = []
-    for tag in tags:
-        match = re.fullmatch(r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', tag)
-        if match:
-            versions.append(tuple(map(int, match.groups())))
+    versions = [version for tag in tags if (version := semver(tag)) is not None]
     if not versions:
         return 'v0.0.1'
     major, minor, patch = max(versions)
     return f'v{major}.{minor}.{patch + 1}'
+
+
+def select_release_tag(tags, commit):
+    """Prefer the greatest SemVer tag already pointing at this workflow commit."""
+    current = [t['name'] for t in tags
+               if semver(t['name']) is not None and t['commit']['sha'] == commit]
+    return max(current, key=semver) if current else next_release_tag(t['name'] for t in tags)
 
 
 def main():
@@ -88,7 +96,7 @@ def main():
     repo = os.environ['GITHUB_REPOSITORY']
     base = f'repos/{repo}'
     tag_pages = json.loads(gh('api', '--paginate', '--slurp', base + '/tags?per_page=100'))
-    tag = next_release_tag(t['name'] for page in tag_pages for t in page)
+    tag = select_release_tag([t for page in tag_pages for t in page], os.environ['GITHUB_SHA'])
     print('Selected distribution tag: ' + tag, flush=True)
     # Listing errors fail closed; do not treat authentication/network errors as absence.
     pages = json.loads(gh('api', '--paginate', '--slurp', base + '/releases?per_page=100'))
@@ -96,7 +104,10 @@ def main():
         raise ValueError(f'Release {tag} already exists (published or draft); refusing to overwrite')
     refs = api(base + '/git/matching-refs/tags/' + quote(tag, safe=''))
     if any(r['ref'] == 'refs/tags/' + tag for r in refs):
-        raise ValueError(f'Distribution tag {tag} already exists; refusing to reuse it')
+        # The commits endpoint peels annotated tags as well as lightweight tags.
+        tagged_commit = api(base + '/commits/' + quote(tag, safe=''))
+        if tagged_commit['sha'] != os.environ['GITHUB_SHA']:
+            raise ValueError(f'Distribution tag {tag} already exists on another commit; refusing to reuse it')
     run = f"{os.environ['GITHUB_SERVER_URL']}/{repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
     notes = f'''Independently built binaries; these are not official upstream release assets.
 
