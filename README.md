@@ -1,11 +1,27 @@
 # bubblewrap binary builder
 
-Builds unmodified [upstream bubblewrap](https://github.com/containers/bubblewrap)
-for Rocky Linux 9/10, Ubuntu 24.04/26.04, and Alpine, on native x86_64 and ARM64 runners.
+Independently builds and distributes unmodified
+[upstream bubblewrap](https://github.com/containers/bubblewrap) binaries.
+These are not official upstream release assets.
 
-In GitHub Actions, run **Build upstream bubblewrap** and enter an exact upstream
-tag (for example `v0.13.1`) or an unambiguous commit hash as `upstream_ref`.
-Download the ten temporary executable artifacts from the completed run.
-No GitHub Releases are published.
+Open **Actions → Build and publish upstream bubblewrap → Run workflow**.
+Enter an exact upstream tag (for example `v0.13.1`) or an unambiguous commit SHA
+in `upstream_ref`. Successful builds publish ten raw executables: Rocky Linux 9/10,
+Ubuntu 24.04/26.04, and Alpine Linux 3.24.3, each for x86_64 and aarch64.
 
-See [build, validation, and runtime details](docs/builds.md).
+Release tags are `bwrap-<upstream-tag>` or `bwrap-g<first-12-of-resolved-SHA>`.
+Download the matching executable from **Releases**, then:
+
+```sh
+chmod +x bwrap-ubuntu24.04-x86_64
+./bwrap-ubuntu24.04-x86_64 --version
+```
+
+Binaries are dynamically linked to the target distro's libc and libcap, plus
+libselinux on Rocky/Ubuntu. Alpine uses musl; the others use glibc. Sandbox creation
+requires a Linux kernel and host policy that permit unprivileged user namespaces.
+
+See [builds, runtime compatibility, failures, and retries](docs/builds.md) and
+[publishing and licensing](docs/publishing.md). Review the
+[upstream license](https://github.com/containers/bubblewrap/blob/main/COPYING)
+before redistributing; upstream bubblewrap uses LGPL-2.0-or-later licensing.

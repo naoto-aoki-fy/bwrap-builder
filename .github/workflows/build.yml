@@ -1,4 +1,4 @@
-name: Build upstream bubblewrap
+name: Build and publish upstream bubblewrap
 on:
   workflow_dispatch:
     inputs:
@@ -14,6 +14,7 @@ jobs:
     timeout-minutes: 15
     outputs:
       sha: ${{ steps.resolve.outputs.sha }}
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -109,3 +110,35 @@ jobs:
             if test -f out/reports/sha256.txt; then cat out/reports/sha256.txt; fi
             echo 'Dependency and upstream TAP test details are in the reports artifact (including skips).'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    needs: [resolve, build]
+    if: ${{ success() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-${{ needs.resolve.outputs.release_tag }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: bwrap-*
+          path: artifacts
+          merge-multiple: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: reports-*
+          path: reports
+          merge-multiple: false
+      - name: Validate, upload to draft, verify uploads, and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_REF: ${{ inputs.upstream_ref }}
+          UPSTREAM_SHA: ${{ needs.resolve.outputs.sha }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.release_tag }}
+        run: python3 scripts/publish.py

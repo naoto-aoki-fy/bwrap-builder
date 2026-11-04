@@ -76,8 +76,8 @@ bits: run `chmod +x bwrap-*` after downloading. Reports are separate `reports-*`
 artifacts, and source is in `upstream-source`. All expire after seven days.
 
 A later job can depend on `build`, use `actions/download-artifact` with pattern
-`bwrap-*` and `merge-multiple: true`, and collect all ten filenames. This repository
-does not implement publishing. Retain upstream license notices and review upstream
+`bwrap-*` and `merge-multiple: true`, and collect all ten filenames. The publishing job collects these artifacts only after the full matrix succeeds;
+see [publishing](publishing.md). Retain upstream license notices and review upstream
 licensing requirements before redistributing executables.
 
 Outputs are dynamically linked for the target distribution. Typical direct
