@@ -1,5 +1,6 @@
 """Build configuration contracts; requires PyYAML (see docs/builds.md)."""
 import importlib.util
+import itertools
 import json
 import os
 from pathlib import Path
@@ -73,8 +74,9 @@ class BuildConfigTests(unittest.TestCase):
     def test_apt_repositories_commands_and_failures(self):
         packages = set('gcc libc6-dev meson ninja-build pkg-config libcap-dev libselinux1-dev python3 bash file binutils util-linux'.split())
         for distro in ('debian11', 'debian12', 'debian13', 'ubuntu24.04', 'ubuntu26.04'):
-            for failure in ('', 'update', 'install'):
-                with self.subTest(distro=distro, failure=failure), tempfile.TemporaryDirectory() as directory:
+            for frontend, failure in itertools.product(
+                    (None, 'noninteractive', 'dialog'), ('', 'update', 'install')):
+                with self.subTest(distro=distro, frontend=frontend, failure=failure), tempfile.TemporaryDirectory() as directory:
                     path = Path(directory)
                     apt = path / 'apt'
                     (apt / 'sources.list.d').mkdir(parents=True)
@@ -100,16 +102,20 @@ class BuildConfigTests(unittest.TestCase):
                     log = path / 'commands'
                     env = dict(os.environ, PATH=directory + os.pathsep + os.environ['PATH'],
                                COMMAND_LOG=str(log), FAIL_COMMAND=failure, STALE_INDEX=str(lists / 'stale'))
+                    # Control the parent environment independently of the test runner.
+                    env.pop('DEBIAN_FRONTEND', None)
+                    if frontend is not None:
+                        env['DEBIAN_FRONTEND'] = frontend
                     result = subprocess.run(['sh', str(script), distro], env=env)
                     self.assertEqual(result.returncode, 42 if failure else 0)
                     commands = [json.loads(line) for line in log.read_text().splitlines()]
-                    self.assertEqual(commands[0], [['update'], None, distro != 'debian11'])
+                    self.assertEqual(commands[0], [['update'], frontend, distro != 'debian11'])
                     self.assertEqual(len(commands), 1 if failure == 'update' else 2)
                     if failure != 'update':
-                        args, frontend, _ = commands[1]
+                        args, install_frontend, _ = commands[1]
                         self.assertEqual(args[:3], ['install', '-y', '--no-install-recommends'])
                         self.assertEqual(set(args[3:]), packages)
-                        self.assertEqual(frontend, 'noninteractive')
+                        self.assertEqual(install_frontend, 'noninteractive')
                     if distro == 'debian11':
                         self.assertEqual((apt / 'sources.list').read_text(),
                                          'deb [check-valid-until=no] http://archive.debian.org/debian bullseye main\n'
