@@ -23,9 +23,10 @@ class BuildConfigTests(unittest.TestCase):
         images = {'rocky9': 'rockylinux/rockylinux:9',
                   'rocky10': 'rockylinux/rockylinux:10',
                   'ubuntu24.04': 'ubuntu:24.04', 'ubuntu26.04': 'ubuntu:26.04',
-                  'alpine': 'alpine:3.24.3'}
+                  'debian13': 'debian:13', 'debian12': 'debian:12',
+                  'debian11': 'debian:11', 'alpine': 'alpine:3.24.3'}
         expected = {(d, a) for d in images for a in ('x86_64', 'aarch64')}
-        self.assertEqual(len(rows), 10)
+        self.assertEqual(len(rows), 16)
         self.assertEqual({(r['distro'], r['arch']) for r in rows}, expected)
         for row in rows:
             self.assertEqual(row['image'], images[row['distro']])

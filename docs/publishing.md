@@ -29,7 +29,7 @@ GitHub may replace older pending jobs in a concurrency group; rerun those if nee
 ## Verification and existing releases
 
 Artifact directories remain separate so merging cannot hide duplicate files.
-The publisher requires exactly the ten expected artifact names and exactly one
+The publisher requires exactly the 16 expected artifact names and exactly one
 correctly named executable inside each. It checks source SHA reports, recorded
 SHA-256 checksums, nonempty ELF64 headers, executable type and CPU architecture,
 and parses the ELF with `readelf`. It does not execute ARM binaries on x86 runners.
@@ -39,11 +39,11 @@ tag. An existing Git tag can be reused only if it resolves to the workflow commi
 a tag pointing elsewhere causes a failure. No assets are overwritten and there is
 no automatic delete.
 
-After validation, a draft is created, exactly ten raw executables are uploaded,
+After validation, a draft is created, exactly 16 raw executables are uploaded,
 and the remote asset list is checked for count, names and upload state. All assets
 are downloaded again and checked against the original checksums and architectures.
 Only then is the draft published. Checksum text lives in the release notes, not an
-eleventh asset. GitHub's automatically generated source archive links are not
+seventeenth asset. GitHub's automatically generated source archive links are not
 uploaded release assets and contain builder repository source.
 
 Upload or verification failure leaves an unpublished draft. If the final publication
@@ -91,5 +91,5 @@ they do not demonstrate working ARM binaries.
 
 No real workflow or release was created: GitHub CLI had no authenticated account
 in this environment. Actual GitHub token permissions, draft visibility/downloads,
-release/tag creation, concurrency scheduling and all ten native builds still need
+release/tag creation, concurrency scheduling and all 16 native builds still need
 an end-to-end Actions run after deployment. The Task 1 Docker limitation also remains.

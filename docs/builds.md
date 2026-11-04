@@ -4,7 +4,7 @@
 
 The workflow uses Rocky project-maintained Docker Hub images
 [`rockylinux/rockylinux:9` and `rockylinux/rockylinux:10`](https://hub.docker.com/r/rockylinux/rockylinux),
-and Docker Official Images `ubuntu:24.04`, `ubuntu:26.04`, and `alpine:3.24.3`.
+and Docker Official Images `ubuntu:24.04`, `ubuntu:26.04`, `debian:13`, `debian:12`, `debian:11`, and `alpine:3.24.3`.
 The legacy `library/rockylinux` namespace is not used.
 Alpine is pinned to **3.24.3**, the current stable patch release at implementation
 ([Alpine release list](https://alpinelinux.org/releases/)). Other images pin the
@@ -48,7 +48,7 @@ The Dockerfile defaults to the maintained Rocky 9 image so its `FROM` is valid
 without build arguments; the workflow still supplies each target's image explicitly.
 
 SELinux is enabled on
-Rocky/Ubuntu and disabled on Alpine; libcap is required everywhere. Tests are enabled,
+Rocky/Ubuntu/Debian and disabled on Alpine; libcap is required everywhere. Tests are enabled,
 manual-page generation is disabled, and shell completions retain upstream defaults.
 No kernel version is assumed, no host CPU optimization is requested, and no patches
 are applied. Older revisions offering a setuid option receive `-Dsetuid=false`.
@@ -73,7 +73,7 @@ never automatically converted to environmental skips: an upstream version that
 fails rather than skips in this environment makes the job fail. Consult its TAP
 output before deciding whether a different runner environment is needed.
 
-`fail-fast: false` attempts all ten entries after successful resolution. Compilation,
+`fail-fast: false` attempts all 16 entries after successful resolution. Compilation,
 validation, or test failure prevents the executable artifact upload. Diagnostics
 upload and summaries are attempted even on failure. Resolution failure prevents all
 builds because no valid source commit exists. Runner/image/package availability
@@ -85,7 +85,7 @@ be inferred from a successful compilation alone.
 
 ## Outputs and collection
 
-Executable names are `bwrap-{rocky9,rocky10,ubuntu24.04,ubuntu26.04,alpine}-{x86_64,aarch64}`.
+Executable names are `bwrap-{rocky9,rocky10,ubuntu24.04,ubuntu26.04,debian13,debian12,debian11,alpine}-{x86_64,aarch64}`.
 Each correspondingly named Actions artifact contains exactly one raw ELF file.
 Actions transports artifacts in ZIP containers; after download/extraction the file
 itself is an ELF, not an archive or package. Actions does not preserve Unix mode
@@ -93,17 +93,17 @@ bits: run `chmod +x bwrap-*` after downloading. Reports are separate `reports-*`
 artifacts, and source is in `upstream-source`. All expire after seven days.
 
 A later job can depend on `build`, use `actions/download-artifact` with pattern
-`bwrap-*` and `merge-multiple: true`, and collect all ten filenames. The publishing job collects these artifacts only after the full matrix succeeds;
+`bwrap-*` and `merge-multiple: true`, and collect all 16 filenames. The publishing job collects these artifacts only after the full matrix succeeds;
 see [publishing](publishing.md). Retain upstream license notices and review upstream
 licensing requirements before redistributing executables.
 
 Outputs are dynamically linked for the target distribution. Typical direct
-libraries are libc and libcap, plus libselinux on Rocky/Ubuntu; libselinux can add
+libraries are libc and libcap, plus libselinux on Rocky/Ubuntu/Debian; libselinux can add
 transitive dependencies such as libpcre2. Alpine uses the musl loader, other targets
 use glibc. The exact interpreter, NEEDED entries and resolved transitive libraries
 for each build are recorded in `elf-dependencies.txt` and `ldd.txt`; those reports
 are authoritative. Install the matching distribution runtime packages (`libcap`,
-`libselinux` on Rocky; `libcap2`, `libselinux1` on Ubuntu; `libcap` on Alpine) and
+`libselinux` on Rocky; `libcap2`, `libselinux1` on Ubuntu/Debian; `libcap` on Alpine) and
 libc. These are not portable static binaries. Successful help/version validation
 does not prove a host allows user namespaces or actual sandbox creation.
 
@@ -115,7 +115,7 @@ Run `python3 -m unittest discover -s tests -v` and `bash -n scripts/build.sh` pl
 `sh -n scripts/install-deps.sh`. With Docker, build the dependency image and invoke
 the same container command as the workflow after running the resolver with
 `UPSTREAM_REF` and `GITHUB_OUTPUT` set. A real Actions run is still needed to check
-all ten images, hosted runner availability, package installation, native compilation,
+all 16 images, hosted runner availability, package installation, native compilation,
 namespace-dependent upstream tests, artifact transfer and summaries.
 
 Implementation-time local validation:

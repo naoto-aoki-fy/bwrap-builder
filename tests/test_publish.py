@@ -51,7 +51,7 @@ class PublishTests(unittest.TestCase):
 
     def test_complete_set(self):
         files, sums = self.collect()
-        self.assertEqual(len(files), 10)
+        self.assertEqual(len(files), 16)
         self.assertEqual(set(sums), set(p.TARGETS))
 
     def test_missing_extra_duplicate_and_archive(self):

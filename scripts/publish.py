@@ -11,7 +11,7 @@ import tempfile
 from urllib.parse import quote
 
 TARGETS = {f'bwrap-{d}-{a}': a for d in
-           ('rocky9', 'rocky10', 'ubuntu24.04', 'ubuntu26.04', 'alpine')
+           ('rocky9', 'rocky10', 'ubuntu24.04', 'ubuntu26.04', 'debian13', 'debian12', 'debian11', 'alpine')
            for a in ('x86_64', 'aarch64')}
 
 
@@ -33,7 +33,7 @@ def validate_binary(path, arch, checksum):
 
 def collect(root, reports, sha):
     if {p.name for p in root.iterdir()} != set(TARGETS):
-        raise ValueError('Expected exactly ten distinct executable artifact directories')
+        raise ValueError(f'Expected exactly {len(TARGETS)} distinct executable artifact directories')
     files, checksums = [], {}
     for name, arch in sorted(TARGETS.items()):
         directory = root / name
@@ -117,14 +117,14 @@ Full upstream commit: {sha}
 Exact source: https://github.com/containers/bubblewrap/tree/{sha}
 Build run: {run}
 
-Targets: Rocky Linux 9 and 10, Ubuntu 24.04 and 26.04, Alpine Linux 3.24.3;
+Targets: Rocky Linux 9 and 10, Ubuntu 24.04 and 26.04, Debian 13, 12 and 11, Alpine Linux 3.24.3;
 each for x86_64 and aarch64. Files are raw ELF executables.
 
 Built with Meson/Ninja in native distribution containers, libcap enabled,
-SELinux enabled on Rocky/Ubuntu and disabled on Alpine. Tests enabled, man pages
+SELinux enabled on Rocky/Ubuntu/Debian and disabled on Alpine. Tests enabled, man pages
 disabled, upstream completion defaults, no setuid installation, no assumed kernel
 version or custom source patches. Dynamically linked: use the target distribution's
-libc (glibc on Rocky/Ubuntu, musl on Alpine), libcap, and libselinux on Rocky/Ubuntu.
+libc (glibc on Rocky/Ubuntu/Debian, musl on Alpine), libcap, and libselinux on Rocky/Ubuntu/Debian.
 Rocky Linux 10 CPU baselines apply. User namespaces must be enabled and permitted
 by the host kernel, LSM and container policy. Help/version checks do not prove
 sandbox creation is permitted. See the workflow reports for test passes/skips.
@@ -145,20 +145,20 @@ SHA-256 checksums:
     print(f'Created draft {tag}; failures leave it unpublished for inspection.', flush=True)
     gh('release', 'upload', tag, *map(str, files), '--repo', repo)
     assets = api(endpoint + '/assets?per_page=100')
-    if (len(assets) != 10 or {a['name'] for a in assets} != set(TARGETS)
+    if (len(assets) != len(TARGETS) or {a['name'] for a in assets} != set(TARGETS)
             or any(a['state'] != 'uploaded' for a in assets)):
         raise ValueError('Draft assets are incomplete, duplicated, or unexpected')
     with tempfile.TemporaryDirectory() as temp:
         gh('release', 'download', tag, '--repo', repo, '--dir', temp)
         if {p.name for p in Path(temp).iterdir()} != set(TARGETS):
-            raise ValueError('Downloaded draft does not contain exactly ten executables')
+            raise ValueError(f'Downloaded draft does not contain exactly {len(TARGETS)} executables')
         for name, arch in TARGETS.items():
             validate_binary(Path(temp) / name, arch, sums[name])
     published = api(endpoint, method='PATCH', data={'draft': False, 'make_latest': 'false'})
     if published['draft']:
         raise ValueError('GitHub did not publish the verified draft')
     with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-        summary.write(f"Published [{tag}]({published['html_url']}) with ten verified ELF assets.\n")
+        summary.write(f"Published [{tag}]({published['html_url']}) with {len(TARGETS)} verified ELF assets.\n")
     print(published['html_url'])
 
 

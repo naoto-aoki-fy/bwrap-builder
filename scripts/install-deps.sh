@@ -6,7 +6,7 @@ case "$1" in
     dnf -y --enablerepo=crb install gcc meson ninja-build pkgconf-pkg-config libcap-devel libselinux-devel python3 bash file binutils util-linux
     dnf clean all
     ;;
-  ubuntu24.04|ubuntu26.04)
+  ubuntu24.04|ubuntu26.04|debian13|debian12|debian11)
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc libc6-dev meson ninja-build pkg-config libcap-dev libselinux1-dev python3 bash file binutils util-linux
     rm -rf /var/lib/apt/lists/*
