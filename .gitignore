@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+/out/
+/input/
+/upstream.git/
+/source.tar
+/resolved-sha.txt

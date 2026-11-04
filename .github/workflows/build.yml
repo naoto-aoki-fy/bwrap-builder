@@ -1,0 +1,111 @@
+name: Build upstream bubblewrap
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: Exact upstream tag or unambiguous commit SHA (no branches)
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - id: resolve
+        name: Resolve upstream and export source
+        env:
+          UPSTREAM_REF: ${{ inputs.upstream_ref }}
+        run: python3 scripts/resolve.py
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: upstream-source
+          path: |
+            source.tar
+            resolved-sha.txt
+          if-no-files-found: error
+          retention-days: 7
+      - name: Record resolved commit
+        env:
+          SHA: ${{ steps.resolve.outputs.sha }}
+        run: echo "Upstream commit used by every build is $SHA" >> "$GITHUB_STEP_SUMMARY"
+  build:
+    needs: resolve
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {distro: rocky9, image: 'rockylinux:9', arch: x86_64, runner: ubuntu-24.04}
+          - {distro: rocky9, image: 'rockylinux:9', arch: aarch64, runner: ubuntu-24.04-arm}
+          - {distro: rocky10, image: 'rockylinux:10', arch: x86_64, runner: ubuntu-24.04}
+          - {distro: rocky10, image: 'rockylinux:10', arch: aarch64, runner: ubuntu-24.04-arm}
+          - {distro: 'ubuntu24.04', image: 'ubuntu:24.04', arch: x86_64, runner: ubuntu-24.04}
+          - {distro: 'ubuntu24.04', image: 'ubuntu:24.04', arch: aarch64, runner: ubuntu-24.04-arm}
+          - {distro: 'ubuntu26.04', image: 'ubuntu:26.04', arch: x86_64, runner: ubuntu-24.04}
+          - {distro: 'ubuntu26.04', image: 'ubuntu:26.04', arch: aarch64, runner: ubuntu-24.04-arm}
+          - {distro: alpine, image: 'alpine:3.24.3', arch: x86_64, runner: ubuntu-24.04}
+          - {distro: alpine, image: 'alpine:3.24.3', arch: aarch64, runner: ubuntu-24.04-arm}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: upstream-source
+          path: input
+      - name: Build target dependency image
+        env:
+          BASE_IMAGE: ${{ matrix.image }}
+          DISTRO: ${{ matrix.distro }}
+        run: docker build --build-arg "BASE_IMAGE=$BASE_IMAGE" --build-arg "DISTRO=$DISTRO" -t bwrap-builder -f scripts/Dockerfile scripts
+      - name: Compile, validate, and test without credentials or privileges
+        env:
+          DISTRO: ${{ matrix.distro }}
+          ARCH: ${{ matrix.arch }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          mkdir -p out/reports
+          docker run --rm --network=none --cap-drop=ALL --security-opt=no-new-privileges \
+            --user "$(id -u):$(id -g)" \
+            --mount "type=bind,src=$PWD/input,dst=/input,readonly" \
+            --mount "type=bind,src=$PWD/scripts,dst=/scripts,readonly" \
+            --mount "type=bind,src=$PWD/out,dst=/out" \
+            bwrap-builder bash /scripts/build.sh "$DISTRO" "$ARCH" "$SHA"
+      - name: Upload executable
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: bwrap-${{ matrix.distro }}-${{ matrix.arch }}
+          path: out/bwrap-${{ matrix.distro }}-${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: reports-${{ matrix.distro }}-${{ matrix.arch }}
+          path: out/reports/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Job summary
+        if: always()
+        env:
+          DISTRO: ${{ matrix.distro }}
+          ARCH: ${{ matrix.arch }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          STATUS: ${{ job.status }}
+        run: |
+          {
+            echo "### $DISTRO / $ARCH: $STATUS"
+            echo "Upstream commit: $SHA"
+            if test -f out/reports/result.txt; then cat out/reports/result.txt; fi
+            if test -f out/reports/sha256.txt; then cat out/reports/sha256.txt; fi
+            echo 'Dependency and upstream TAP test details are in the reports artifact (including skips).'
+          } >> "$GITHUB_STEP_SUMMARY"
