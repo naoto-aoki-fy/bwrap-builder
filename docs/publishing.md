@@ -7,11 +7,8 @@ passed to the publishing step, and downloaded executables are never executed the
 
 Distribution release tags use strict `vMAJOR.MINOR.PATCH` SemVer numbers,
 independent of the bubblewrap version or selected upstream identifier. During
-publishing, the workflow reads every page of this builder repository's Git tags.
-If the workflow commit (`GITHUB_SHA`) already has matching tags, it reuses the
-greatest numeric version on that commit, even if another commit has a newer tag.
-Both lightweight and annotated tags are supported. Otherwise, it selects the
-greatest numeric `(major, minor, patch)` tuple, and increments only
+publishing, the workflow reads every page of this builder repository's Git tags,
+selects the greatest numeric `(major, minor, patch)` tuple, and increments only
 its patch component. With no matching tags, it starts at `v0.0.1`. For example,
 `v1.10.10` takes precedence over `v1.9.99` and produces `v1.10.11`.
 Tags with leading zeroes, prerelease/build suffixes, or other formats are ignored.
@@ -34,9 +31,8 @@ correctly named executable inside each. It checks source SHA reports, recorded
 SHA-256 checksums, nonempty ELF64 headers, executable type and CPU architecture,
 and parses the ELF with `readelf`. It does not execute ARM binaries on x86 runners.
 
-Existing releases (including drafts) cause an explicit failure for the selected
-tag. An existing Git tag can be reused only if it resolves to the workflow commit;
-a tag pointing elsewhere causes a failure. No assets are overwritten and there is
+Both existing releases (including drafts) and existing distribution Git tags cause
+an explicit failure for the selected tag. No assets are overwritten and there is
 no automatic delete.
 
 After validation, a draft is created, exactly 16 raw executables are uploaded,
@@ -56,8 +52,8 @@ outside workflow concurrency protection.
 For compilation, dependency, binary validation or upstream test failures, inspect
 the failed matrix job and its `reports-*` artifact. Test skips are recorded separately
 from failures. Retry transient package/network/runner failures by rerunning failed
-jobs; dispatch again for a complete fresh build. A new build reuses the workflow
-commit's SemVer tag if present; otherwise it receives a new distribution version.
+jobs; dispatch again for a complete fresh build. A new build of the same upstream
+revision receives a new distribution version.
 
 If publishing left a draft, inspect its notes and assets. An administrator may delete
 the failed draft and, if present, its distribution tag after confirming it was never
