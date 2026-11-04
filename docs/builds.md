@@ -47,6 +47,44 @@ The packages are identical on x86_64 and aarch64:
 The Dockerfile defaults to the maintained Rocky 9 image so its `FROM` is valid
 without build arguments; the workflow still supplies each target's image explicitly.
 
+## Debian 11 historical repositories
+
+Debian 11 Bullseye [reached LTS end-of-life on August 31, 2026](https://www.debian.org/News/2026/20260831).
+Debian no longer provides official security updates for it. This target remains
+for compatibility; historical toolchain and runtime packages can contain unfixed
+vulnerabilities.
+
+Only the `debian11` installer replaces the image's legacy `.list` and deb822
+`.sources` defaults with `main` from these repositories:
+
+- `http://archive.debian.org/debian`, suite `bullseye`.
+- `http://archive.debian.org/debian-security`, suite `bullseye-security`.
+
+The original installer used the base image's live mirror configuration. The
+reported successful index update followed by package-download 404s is consistent
+with indexes referring to security packages no longer served at those mirrors.
+The referenced log ZIP was not supplied with this repair, so those exact failing
+URLs could not be independently checked.
+
+HTTP avoids depending on CA certificates being preinstalled in the base image;
+APT authenticates metadata signatures and package hashes independently of transport.
+Old package indexes are deleted before refreshing. `check-valid-until=no` applies
+only to these two source entries, permitting historical metadata; APT signature
+and package hash verification remain enabled using the image's Debian keyring.
+This accepts old signed metadata without a freshness guarantee. Other targets
+retain their existing sources and APT settings. No errors are ignored.
+
+Archive usage does not make builds bit-for-bit reproducible: base tags remain
+mutable and dependency versions are not locked. Archive availability and the
+base image's keyring still matter. For future failures, rebuild the dependency
+image with `--no-cache --progress=plain`, inspect `sources.list` and
+`sources.list.d`, and distinguish metadata expiry, signature/keyring errors,
+missing package URLs, and dependency conflicts. Check each archive's `InRelease`
+and `main/binary-{amd64,arm64}/Packages.xz`, then the indexed pool URLs. Do not
+work around signature errors with trusted sources or unauthenticated installs.
+After any repair, rerun both native Debian 11 jobs and the complete matrix;
+inspect the ELF, dependency, checksum and upstream test reports, preserving skips.
+
 SELinux is enabled on
 Rocky/Ubuntu/Debian and disabled on Alpine; libcap is required everywhere. Tests are enabled,
 manual-page generation is disabled, and shell completions retain upstream defaults.
@@ -156,3 +194,21 @@ Implementation-time local validation:
 - The publication gate and existing integrity checks are unchanged. Unit tests
   cover incomplete artifact sets and failed upload/verification paths, but an
   end-to-end failed-matrix publication check has not been run here.
+
+### Debian 11 archive repair validation (2026-11-05)
+
+- All 18 Python unit tests passed, including stubbed APT execution for all five
+  Debian/Ubuntu targets, source isolation, stale-index removal, exact install
+  arguments, and update/install failure propagation. Existing tests enforce all
+  16 matrix entries and the successful-build publication gate.
+- Both shell syntax checks and `git diff --check` passed.
+- Live archive `InRelease` signatures verified with `gpgv` and the local Debian
+  archive keyring. SHA-256 checks matched the signed metadata for both suites'
+  amd64/arm64 package indexes. All 12 directly requested packages appeared in
+  each base index; four also appeared in each security index. All corresponding
+  pool URLs answered HTTP HEAD successfully. This does not test transitive
+  dependency solving or the base image's keyring.
+- Docker and authenticated GitHub access were unavailable. Dependency-image
+  installation, native compilation, ELF/runtime/checksum checks, upstream tests,
+  and the complete 16-target Actions run remain unverified. No release was
+  published, and no upstream skips were reclassified.
