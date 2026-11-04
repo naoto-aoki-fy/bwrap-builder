@@ -2,7 +2,8 @@
 set -eu
 case "$1" in
   rocky9|rocky10)
-    dnf -y install gcc meson ninja-build pkgconf-pkg-config libcap-devel libselinux-devel python3 bash file binutils util-linux
+    # Meson and Ninja are in Rocky's CRB repository (disabled by default).
+    dnf -y --enablerepo=crb install gcc meson ninja-build pkgconf-pkg-config libcap-devel libselinux-devel python3 bash file binutils util-linux
     dnf clean all
     ;;
   ubuntu24.04|ubuntu26.04)

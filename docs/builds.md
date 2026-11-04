@@ -2,8 +2,10 @@
 
 ## Targets and prerequisites
 
-The workflow uses Docker Official Images `rockylinux:9`, `rockylinux:10`,
-`ubuntu:24.04`, `ubuntu:26.04`, and `alpine:3.24.3`.
+The workflow uses Rocky project-maintained Docker Hub images
+[`rockylinux/rockylinux:9` and `rockylinux/rockylinux:10`](https://hub.docker.com/r/rockylinux/rockylinux),
+and Docker Official Images `ubuntu:24.04`, `ubuntu:26.04`, and `alpine:3.24.3`.
+The legacy `library/rockylinux` namespace is not used.
 Alpine is pinned to **3.24.3**, the current stable patch release at implementation
 ([Alpine release list](https://alpinelinux.org/releases/)). Other images pin the
 requested distribution release; tags and package repositories can receive updates.
@@ -30,7 +32,22 @@ to check abbreviated-hash ambiguity. The resolved 40-character SHA and `git arch
 snapshot are shared with all jobs. Input is passed via an environment variable and
 Git argument arrays, never evaluated as shell code.
 
-Dependencies are explicit in `scripts/install-deps.sh`. SELinux is enabled on
+Dependencies are explicit in `scripts/install-deps.sh`. Rocky installation uses
+`dnf -y --enablerepo=crb install`, retaining the default BaseOS and AppStream
+repositories and enabling CRB for that transaction. No EPEL or downloaded build
+tools are needed. [CRB is disabled by default on Rocky 9 and 10](https://github.com/rocky-linux/wiki.rockylinux.org/blob/main/docs/rocky/repo.md).
+The packages are identical on x86_64 and aarch64:
+
+| Repository | Required RPM packages |
+| --- | --- |
+| BaseOS | `pkgconf-pkg-config`, `python3`, `bash`, `file`, `binutils`, `util-linux` |
+| AppStream | `gcc`, `libcap-devel`, `libselinux-devel` |
+| CRB | `meson`, `ninja-build` |
+
+The Dockerfile defaults to the maintained Rocky 9 image so its `FROM` is valid
+without build arguments; the workflow still supplies each target's image explicitly.
+
+SELinux is enabled on
 Rocky/Ubuntu and disabled on Alpine; libcap is required everywhere. Tests are enabled,
 manual-page generation is disabled, and shell completions retain upstream defaults.
 No kernel version is assumed, no host CPU optimization is requested, and no patches
@@ -92,6 +109,8 @@ does not prove a host allows user namespaces or actual sandbox creation.
 
 ## Local checks
 
+Install the configuration-check dependency with
+`python3 -m pip install PyYAML==6.0.2`.
 Run `python3 -m unittest discover -s tests -v` and `bash -n scripts/build.sh` plus
 `sh -n scripts/install-deps.sh`. With Docker, build the dependency image and invoke
 the same container command as the workflow after running the resolver with
@@ -110,3 +129,30 @@ Implementation-time local validation:
   and Git whitespace checks passed.
 - Docker was unavailable locally. No target compilation, binary execution, or
   upstream test suite has been run yet; those require the real matrix run.
+
+### Rocky build repair validation (2026-11-04)
+
+- Docker Registry manifests for both maintained tags advertised `linux/amd64`
+  and `linux/arm64/v8`. Observed index digests were
+  `sha256:8101994123cf3d0a8fee517bee7f39e555c7d92bd2d9eb3303cc988a0eeed00f`
+  (9) and `sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834`
+  (10). These observations do not pin the mutable tags.
+- Official `repodata/repomd.xml` and primary metadata under
+  `https://dl.rockylinux.org/pub/rocky/{9,10}/{BaseOS,AppStream,CRB}/{x86_64,aarch64}/os/`
+  contained every requested package for all four Rocky targets. CRB supplied
+  Meson 0.63.3 / Ninja 1.10.2 on 9 and Meson 1.4.1 / Ninja 1.11.1 on 10.
+  This checks package availability, not DNF dependency solving or installation.
+- All 16 Python unit tests, both shell syntax checks, and actionlint 1.7.7
+  validation of both workflows passed. New configuration
+  tests exercise Rocky installer commands and failure propagation using a stub,
+  enforce ten unique targets and native runner/image mappings, and check the
+  publication success gate and publisher artifact-name agreement. The checks
+  workflow runs these on pushes and pull requests.
+- Docker and authenticated GitHub access were unavailable. Actual DNF resolution,
+  installation and upstream `v0.13.1` builds on all ten native targets still require
+  an Actions run. Confirm each named ELF, reports, checksum and test logs there;
+  the previously reported one pass and five skips per target are not additional
+  functional coverage. No new target binaries or diagnostics were produced locally.
+- The publication gate and existing integrity checks are unchanged. Unit tests
+  cover incomplete artifact sets and failed upload/verification paths, but an
+  end-to-end failed-matrix publication check has not been run here.

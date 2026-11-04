@@ -44,10 +44,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {distro: rocky9, image: 'rockylinux:9', arch: x86_64, runner: ubuntu-24.04}
-          - {distro: rocky9, image: 'rockylinux:9', arch: aarch64, runner: ubuntu-24.04-arm}
-          - {distro: rocky10, image: 'rockylinux:10', arch: x86_64, runner: ubuntu-24.04}
-          - {distro: rocky10, image: 'rockylinux:10', arch: aarch64, runner: ubuntu-24.04-arm}
+          - {distro: rocky9, image: 'rockylinux/rockylinux:9', arch: x86_64, runner: ubuntu-24.04}
+          - {distro: rocky9, image: 'rockylinux/rockylinux:9', arch: aarch64, runner: ubuntu-24.04-arm}
+          - {distro: rocky10, image: 'rockylinux/rockylinux:10', arch: x86_64, runner: ubuntu-24.04}
+          - {distro: rocky10, image: 'rockylinux/rockylinux:10', arch: aarch64, runner: ubuntu-24.04-arm}
           - {distro: 'ubuntu24.04', image: 'ubuntu:24.04', arch: x86_64, runner: ubuntu-24.04}
           - {distro: 'ubuntu24.04', image: 'ubuntu:24.04', arch: aarch64, runner: ubuntu-24.04-arm}
           - {distro: 'ubuntu26.04', image: 'ubuntu:26.04', arch: x86_64, runner: ubuntu-24.04}
